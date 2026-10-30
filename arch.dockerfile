@@ -15,11 +15,9 @@
 # ╚═════════════════════════════════════════════════════╝
 # :: ENTRYPOINT
   FROM 11notes/go:${APP_GO_VERSION} AS entrypoint
-  ARG APP_GO_VERSION
-  COPY ./build/go/entrypoint /go/entrypoint
+  COPY ./build /
   RUN set -ex; \
     cd /go/entrypoint; \
-    go mod edit -go=${APP_GO_VERSION}; \
     eleven go build /entrypoint main.go; \
     eleven distroless /entrypoint;
 
@@ -28,37 +26,28 @@
   FROM 11notes/go:${APP_GO_VERSION} AS build
   ARG APP_VERSION \
       BUILD_ROOT=/go/sshpiper \
-      BUILD_SRC=tg123/sshpiper.git \
-      BUILD_TMP=/tmp/sshpiper
+      BUILD_SRC=tg123/sshpiper.git
 
   RUN set -ex; \
     eleven git clone ${BUILD_SRC} v${APP_VERSION};
 
   RUN set -ex; \
     cd ${BUILD_ROOT}; \
-    eleven go patch google.golang.org/grpc v1.82.1 CVE-2026-33186; \
-    eleven go patch golang.org/x/net v0.56.0 CVE-2026-39821; \
-    eleven go patch go.opentelemetry.io/otel v1.44.0 CVE-2026-41178; \
-    eleven go patch golang.org/x/text v0.39.0 CVE-2026-56852;
+    eleven go patch google.golang.org/grpc v1.79.3 CVE-2026-33186; \
+    eleven go patch golang.org/x/net v0.55.0 CVE-2026-39821;
 
   COPY ./build/go/sshpiper /go/sshpiper
 
   RUN set -ex; \
-    mkdir -p ${BUILD_TMP};
-
-  RUN set -ex; \
-    cd ${BUILD_ROOT}/cmd/sshpiperd; \
-    go mod tidy; \
-    go build -tags full -ldflags="-extldflags=-static -X main.mainver=${APP_VERSION}" -o ${BUILD_TMP} .;
-
-  RUN set -ex; \
     cd ${BUILD_ROOT}; \
+    mkdir -p /tmp/sshpiper; \
     rm -rf ./plugin/simplemath; \
     go mod tidy; \
-    go build -tags full -ldflags="-extldflags=-static" -o ${BUILD_TMP} ./plugin/...;
+    go build -tags full -ldflags="-extldflags=-static -X main.mainver=${APP_VERSION}" -o /tmp/sshpiper ./cmd/...; \
+    go build -tags full -ldflags="-extldflags=-static" -o /tmp/sshpiper ./plugin/...;
 
   RUN set -ex; \
-    cd ${BUILD_TMP}; \
+    cd /tmp/sshpiper; \
     for BIN in *; do \
       eleven distroless ${BIN}; \
     done;
